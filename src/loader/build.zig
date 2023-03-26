@@ -23,6 +23,8 @@ pub fn build(b: *std.Build) !void {
     const qemu = b.step("run", "run in qemu");
     const run_qemu = b.addSystemCommand(&[_][]const u8{
         "qemu-system-x86_64",
+        "-m",
+        "1G",
         "-bios",
         "/usr/share/ovmf/OVMF.fd",
         "-hdd",
