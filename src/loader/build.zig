@@ -20,24 +20,13 @@ pub fn build(b: *std.Build) !void {
     loader.setOutputDir("fs/efi/boot");
     loader.install();
 
-    const qemu = b.step("run", "run in qemu");
-    const run_qemu = b.addSystemCommand(&[_][]const u8{
-        "qemu-system-x86_64",
-        "-m",
-        "1G",
-        "-bios",
-        "/usr/share/ovmf/OVMF.fd",
-        "-hdd",
-        "fat:rw:fs",
-        "-device",
-        "qemu-xhci,id=xhci",
-        "-monitor",
-        "stdio",
-    });
-    qemu.dependOn(&run_qemu.step);
-    run_qemu.step.dependOn(&loader.step);
+    const qemu = qemu_cmd(b);
+    qemu.step.dependOn(&loader.step);
 
-    const test_step = b.step("test", "testing");
+    const run_qemu = b.step("run", "run in qemu");
+    run_qemu.dependOn(&qemu.step);
+
+    const test_step = b.step("test", "testing loader");
     test_step.dependOn(b.getInstallStep());
 
     const loader_test = b.addTest(.{
@@ -54,4 +43,27 @@ pub fn build(b: *std.Build) !void {
     loader_test.setFilter(test_filter);
 
     test_step.dependOn(&loader_test.step);
+}
+
+fn qemu_cmd(b: *std.Build) *std.Build.RunStep {
+    const is_debug = b.option(bool, "debug", "debugging in qemu") orelse false;
+
+    const args = [_][]const u8{
+        "qemu-system-x86_64",
+        "-m",
+        "1G",
+        "-bios",
+        "/usr/share/ovmf/OVMF.fd",
+        "-hdd",
+        "fat:rw:fs",
+        "-device",
+        "qemu-xhci,id=xhci",
+        "-monitor",
+        "stdio",
+    };
+    if (is_debug) {
+        const debug_args = args ++ [_][]const u8{ "-s", "-S" };
+        return b.addSystemCommand(&debug_args);
+    }
+    return b.addSystemCommand(&args);
 }

@@ -23,7 +23,8 @@ pub fn log(level: LogLevel, comptime format: []const u8, args: anytype) void {
 }
 
 fn putc(c: u8) void {
-    _ = efi.con_out.outputString(&[2:0]u16{ c, 0 });
+    const c_ = [2]u16{ c, 0 };
+    _ = efi.con_out.outputString(@ptrCast(*const [1:0]u16, &c_));
 }
 
 fn puts(s: []const u8) void {

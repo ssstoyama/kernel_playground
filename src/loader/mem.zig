@@ -2,34 +2,44 @@ const uefi = @import("std").os.uefi;
 const efi = @import("efi.zig");
 const logger = @import("logger.zig");
 const MemoryDescriptor = uefi.tables.MemoryDescriptor;
+const BootServicesData = uefi.tables.MemoryType.BootServicesData;
 
 pub const MemoryMap = struct {
-    mem_size: usize,
-    descriptors: [*]MemoryDescriptor,
-    map_key: usize = 0,
-    descriptor_size: usize = 0,
-    descriptor_version: u32 = 0,
-    descriptor_count: usize = 0,
+    mem_size: usize = undefined,
+    descriptors: [*]MemoryDescriptor = undefined,
+    map_key: usize = undefined,
+    descriptor_size: usize = undefined,
+    descriptor_version: u32 = undefined,
+    descriptor_count: usize = undefined,
 
-    pub fn init(comptime mem_size: usize, descriptors: [*]MemoryDescriptor) MemoryMap {
-        return .{
-            .mem_size = mem_size,
-            .descriptors = descriptors,
+    const Self = @This();
+
+    pub fn init() !MemoryMap {
+        var mmap = MemoryMap{};
+        while (uefi.Status.BufferTooSmall == efi.bs.getMemoryMap(
+            &mmap.mem_size,
+            mmap.descriptors,
+            &mmap.map_key,
+            &mmap.descriptor_size,
+            &mmap.descriptor_version,
+        )) {
+            const status = efi.bs.allocatePool(BootServicesData, mmap.mem_size, @ptrCast(*[*]align(8) u8, &mmap.descriptors));
+            try status.err();
+        }
+        mmap.descriptor_count = mmap.mem_size / mmap.descriptor_size;
+        return mmap;
+    }
+
+    pub fn at(self: Self, i: usize) *MemoryDescriptor {
+        return @intToPtr(*MemoryDescriptor, @ptrToInt(self.descriptors) + (i * self.descriptor_size));
+    }
+
+    pub fn isAvailable(descriptor: *MemoryDescriptor) bool {
+        return switch (descriptor.type) {
+            .BootServicesCode => true,
+            .BootServicesData => true,
+            .ConventionalMemory => true,
+            else => false,
         };
     }
 };
-
-pub fn getMemoryMap(memmap: *MemoryMap) !void {
-    var status = efi.bs.getMemoryMap(&memmap.mem_size, memmap.descriptors, &memmap.map_key, &memmap.descriptor_size, &memmap.descriptor_version);
-    memmap.descriptor_count = memmap.mem_size / memmap.descriptor_size;
-
-    logger.log(.Debug, "getMemoryMap: status={d}\r\n", .{status});
-    logger.log(.Debug, "MemoryMap:\r\n", .{});
-    logger.log(.Debug, "  mem_size=0x{x}\r\n", .{memmap.mem_size});
-    logger.log(.Debug, "  map_key=0x{x}\r\n", .{memmap.map_key});
-    logger.log(.Debug, "  descriptor_size=0x{x}\r\n", .{memmap.descriptor_size});
-    logger.log(.Debug, "  descriptor_version=0x{x}\r\n", .{memmap.descriptor_version});
-    logger.log(.Debug, "  descriptor_count={d}\r\n", .{memmap.descriptor_count});
-
-    return status.err();
-}
