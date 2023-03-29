@@ -32,6 +32,9 @@ fn efi_main() !void {
 fn saveMemmap(mmap: mem.MemoryMap) !void {
     var root_file_system: *uefi.protocols.FileProtocol = undefined;
     try efi.fs.openVolume(&root_file_system).err();
+    defer {
+        _ = root_file_system.close();
+    }
     logger.log(.Info, "Opened root file system\r\n", .{});
 
     var mmap_file: *uefi.protocols.FileProtocol = undefined;
