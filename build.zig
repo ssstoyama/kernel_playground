@@ -8,7 +8,7 @@ pub fn build(b: *std.Build) !void {
 
     const loader = b.addExecutable(.{
         .name = "bootx64",
-        .root_source_file = .{ .path = "main.zig" },
+        .root_source_file = .{ .path = "src/loader/main.zig" },
         .target = CrossTarget{
             .cpu_arch = .x86_64,
             .os_tag = .uefi,
