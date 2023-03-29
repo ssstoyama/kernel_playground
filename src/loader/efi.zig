@@ -9,13 +9,9 @@ pub fn init(system_table: *uefi.tables.SystemTable) !void {
     con_out = system_table.con_out orelse return uefi.Status.Unsupported.err();
     bs = system_table.boot_services orelse return uefi.Status.Unsupported.err();
 
-    var status: uefi.Status = undefined;
     var simple_file_system: ?*uefi.protocols.SimpleFileSystemProtocol = undefined;
-    status = bs.locateProtocol(&uefi.protocols.SimpleFileSystemProtocol.guid, null, @ptrCast(*?*anyopaque, &simple_file_system));
-    if (status != .Success) return status.err();
+    try bs.locateProtocol(&uefi.protocols.SimpleFileSystemProtocol.guid, null, @ptrCast(*?*anyopaque, &simple_file_system)).err();
     fs = simple_file_system.?;
-
-    _ = con_out.clearScreen();
 }
 
 pub fn string(dest: []u16, s: []const u8) void {

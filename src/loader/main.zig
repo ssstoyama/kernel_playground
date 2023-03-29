@@ -13,6 +13,8 @@ pub fn main() void {
 fn efi_main() !void {
     try efi.init(uefi.system_table);
 
+    try efi.con_out.clearScreen().err();
+
     errdefer |err| {
         logger.log(.Error, "Loader error is {s}\r\n", .{@errorName(err)});
     }
