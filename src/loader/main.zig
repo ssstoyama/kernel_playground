@@ -5,76 +5,75 @@ const logger = @import("logger.zig");
 const mem = @import("mem.zig");
 
 pub fn main() void {
-    efi_main() catch {
+    efiMain() catch {
         while (true) {}
     };
 }
 
-fn efi_main() !void {
+fn efiMain() !void {
     try efi.init(uefi.system_table);
-
-    try efi.con_out.clearScreen().err();
+    logger.setLoevel(.Debug);
 
     errdefer |err| {
         logger.log(.Error, "Loader error is {s}\r\n", .{@errorName(err)});
     }
-    logger.setLoevel(.Debug);
-    logger.log(.Info, "Start boot loader\r\n", .{});
 
-    var mmap = try mem.MemoryMap.init();
-    logger.log(.Info, "map_size: 0x{x}, descriptor_size: 0x{x}, sizeOf(MemoryDescriptor): 0x{x}\r\n", .{ mmap.mem_size, mmap.descriptor_size, @sizeOf(uefi.tables.MemoryDescriptor) });
+    try efi.con_out.clearScreen().err();
 
-    try saveMemmap(mmap);
+    logger.log(.Info, "start boot\r\n", .{});
+
+    var frame_buffer_config = efi.FrameBufferConfig{
+        .frame_buffer = @intToPtr([*]u8, efi.gop.mode.frame_buffer_base),
+        .pixels_per_scan_line = efi.gop.mode.info.pixels_per_scan_line,
+        .horizontal_resolution = efi.gop.mode.info.horizontal_resolution,
+        .vertical_resolution = efi.gop.mode.info.vertical_resolution,
+        .pixel_format = switch (efi.gop.mode.info.pixel_format) {
+            .PixelRedGreenBlueReserved8BitPerColor => efi.PixelFormat.PixelRGBResv8BitPerColor,
+            .PixelBlueGreenRedReserved8BitPerColor => efi.PixelFormat.PixelBGRResv8BitPerColor,
+            else => unreachable,
+        },
+    };
+    logger.log(.Info, "frame_buffer={*}, horizontal={x}, vertical={x}\r\n", .{
+        frame_buffer_config.frame_buffer,
+        frame_buffer_config.horizontal_resolution,
+        frame_buffer_config.vertical_resolution,
+    });
+    const writer = efi.PixelWriter.init(&frame_buffer_config);
+
+    var mmap = efi.MemoryMap{};
+    try getMemoryMap(&mmap);
+    logger.log(.Info, "get memory map\r\n", .{});
+    try exitBootServices(mmap.map_key);
+
+    {
+        var x: usize = 0;
+        while (x < frame_buffer_config.horizontal_resolution) : (x += 1) {
+            var y: usize = 0;
+            while (y < frame_buffer_config.vertical_resolution) : (y += 1) {
+                writer.write(x, y, .{ .r = 45, .g = 118, .b = 237 });
+            }
+        }
+    }
 
     while (true) {}
 }
 
-fn saveMemmap(mmap: mem.MemoryMap) !void {
-    var root_file_system: *uefi.protocols.FileProtocol = undefined;
-    try efi.fs.openVolume(&root_file_system).err();
-    defer {
-        _ = root_file_system.close();
+fn exitBootServices(map_key: usize) !void {
+    if (efi.bs.exitBootServices(uefi.handle, map_key) == uefi.Status.InvalidParameter) {
+        var mmap = efi.MemoryMap{};
+        try getMemoryMap(&mmap);
+        try efi.bs.exitBootServices(uefi.handle, mmap.map_key).err();
     }
-    logger.log(.Info, "Opened root file system\r\n", .{});
+}
 
-    var mmap_file: *uefi.protocols.FileProtocol = undefined;
-    var title = [_:0]u16{0} ** 10;
-    efi.string(&title, "memmap.txt");
-    try root_file_system.open(
-        &mmap_file,
-        &title,
-        uefi.protocols.FileProtocol.efi_file_mode_read | uefi.protocols.FileProtocol.efi_file_mode_write | uefi.protocols.FileProtocol.efi_file_mode_create,
-        0,
-    ).err();
-    defer {
-        _ = mmap_file.flush();
-        _ = mmap_file.close();
+fn getMemoryMap(mmap: *efi.MemoryMap) !void {
+    while (uefi.Status.BufferTooSmall == efi.bs.getMemoryMap(
+        &mmap.mem_size,
+        mmap.descriptors,
+        &mmap.map_key,
+        &mmap.descriptor_size,
+        &mmap.descriptor_version,
+    )) {
+        try efi.bs.allocatePool(uefi.tables.MemoryType.BootServicesData, mmap.mem_size, @ptrCast(*[*]align(8) u8, &mmap.descriptors)).err();
     }
-    logger.log(.Info, "Opened memmap.txt\r\n", .{});
-
-    var header = "Index, PhysicalStart, NumberOfPages, Type\n".*;
-    var header_size = header.len;
-    try mmap_file.write(&header_size, &header).err();
-
-    {
-        var i: usize = 0;
-        var buf: [4096]u8 = undefined;
-        while (i < mmap.descriptor_count) : (i += 1) {
-            var descriptor = mmap.at(i);
-            const text = try std.fmt.bufPrint(
-                &buf,
-                "{d:0>5}, 0x{x:0>11}, 0x{x:0>11}, {d}\n",
-                .{
-                    i,
-                    descriptor.physical_start,
-                    descriptor.number_of_pages,
-                    descriptor.type,
-                },
-            );
-            var buf_size = text.len;
-            try mmap_file.write(&buf_size, &buf).err();
-        }
-    }
-
-    logger.log(.Info, "Written MemoryMap to memmap.txt\r\n", .{});
 }

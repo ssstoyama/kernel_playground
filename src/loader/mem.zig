@@ -7,7 +7,7 @@ const BootServicesData = uefi.tables.MemoryType.BootServicesData;
 pub const MemoryMap = struct {
     mem_size: usize = undefined,
     descriptors: [*]MemoryDescriptor = undefined,
-    map_key: usize = undefined,
+    map_key: *usize = undefined,
     descriptor_size: usize = undefined,
     descriptor_version: u32 = undefined,
     descriptor_count: usize = undefined,
@@ -19,7 +19,7 @@ pub const MemoryMap = struct {
         while (uefi.Status.BufferTooSmall == efi.bs.getMemoryMap(
             &mmap.mem_size,
             mmap.descriptors,
-            &mmap.map_key,
+            mmap.map_key,
             &mmap.descriptor_size,
             &mmap.descriptor_version,
         )) {

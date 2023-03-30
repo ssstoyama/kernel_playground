@@ -62,6 +62,12 @@ fn buildKernel(b: *std.Build, optimize: std.builtin.Mode) !*std.Build.CompileSte
         .optimize = optimize,
         .linkage = .static,
     });
+    kernel.image_base = 0x100000;
+    kernel.entry_symbol_name = "kernel_main";
+    kernel.link_z_relro = false;
+    kernel.red_zone = false;
+    kernel.is_linking_libc = false;
+    kernel.is_linking_libcpp = false;
     kernel.setOutputDir("fs");
     kernel.install();
     return kernel;
