@@ -56,7 +56,6 @@ fn efiMain() !void {
         uefi.protocols.FileProtocol.efi_file_mode_read,
         uefi.protocols.FileProtocol.efi_file_read_only,
     ).err();
-    // try root_dir.close().err();
     logger.log(.Info, "open kernel.elf\r\n", .{});
 
     var file_info_size: usize = 0;
@@ -67,10 +66,14 @@ fn efiMain() !void {
     }
     logger.log(.Info, "get file info: file_size={d}\r\n", .{file_info.file_size});
 
-    var header_size: usize = @sizeOf(elf.Elf64_Ehdr);
-    var header_buffer: [*]align(8) u8 = undefined;
-    try readAndAllocate(kernel_file, &header_size, &header_buffer);
-    const header = try elf.Header.parse(header_buffer[0..64]);
+    var kernel_buffer: [*]align(8) u8 = undefined;
+    try readAndAllocate(kernel_file, &file_info.file_size, &kernel_buffer);
+    logger.log(.Info, "loaded kernel buffer: {*}\r\n", .{kernel_buffer});
+
+    // var header_size: usize = @sizeOf(elf.Elf64_Ehdr);
+    // var header_buffer: [*]align(8) u8 = undefined;
+    // try readAndAllocate(kernel_file, &header_size, &header_buffer);
+    const header = try elf.Header.parse(kernel_buffer[0..@sizeOf(elf.Elf64_Ehdr)]);
     const entry_point = header.entry;
     logger.log(.Info, "kernel entry point=0x{x}\r\n", .{entry_point});
 
@@ -94,23 +97,68 @@ fn efiMain() !void {
     try efi.bs.allocatePages(.AllocateAddress, .LoaderData, pages, @ptrCast(*[*]align(4096) u8, &kernel_first_addr)).err();
     logger.log(.Info, "allocate pages for kernel\r\n", .{});
 
-    try efi.bs.freePool(header_buffer).err();
+    iter = header.program_header_iterator(kernel_file);
+    while (try iter.next()) |phdr| {
+        if (phdr.p_type != elf.PT_LOAD) continue;
+        loadProgramSegment(@ptrToInt(kernel_buffer), phdr);
+    }
 
-    try exitBootServices(mmap.map_key);
+    // try kernel_file.close().err();
+    // try efi.bs.freePool(header_buffer).err();
+    try efi.bs.freePool(kernel_buffer).err();
+    try root_dir.close().err();
+    logger.log(.Info, "free temporary memory\r\n", .{});
+
+    // カーネル実行
+    const kernel_entry = @intToPtr(*fn () callconv(.C) void, entry_point);
+    logger.log(.Debug, "kernel_first_addr=0x{x}, kernel_last_addr=0x{x}\r\n", .{ kernel_first_addr, kernel_last_addr });
+    logger.log(.Debug, "entry_point={x}, kernel_entry={*}\r\n", .{ entry_point, kernel_entry });
+
+    // try exitBootServices(mmap.map_key);
+
+    {
+        var x: usize = 0;
+        while (x < 10) : (x += 1) {
+            var y: usize = 0;
+            while (y < 200) : (y += 1) {
+                var p = @ptrCast([*]u8, &frame_buffer_config.frame_buffer[4 * (frame_buffer_config.pixels_per_scan_line * y + x)]);
+                p[0] = 255;
+                p[1] = 255;
+                p[2] = 255;
+            }
+        }
+    }
+
+    kernel_entry();
+    while (true) {}
 
     {
         var x: usize = 0;
         // while (x < frame_buffer_config.horizontal_resolution) : (x += 1) {
-        while (x < 50) : (x += 1) {
+        while (x < 30) : (x += 1) {
             var y: usize = 0;
             // while (y < frame_buffer_config.vertical_resolution) : (y += 1) {
-            while (y < 50) : (y += 1) {
-                writer.write(x, y, .{ .r = 45, .g = 118, .b = 237 });
+            while (y < 30) : (y += 1) {
+                writer.write(x, y, .{ .r = 200 });
             }
         }
     }
 
     while (true) {}
+}
+
+fn loadProgramSegment(base: usize, phdr: elf.Elf64_Phdr) void {
+    logger.log(.Debug, "base: 0x{x}\r\n", .{base});
+    if (phdr.p_type != elf.PT_LOAD) return;
+    var dest: [*]u8 = @intToPtr([*]u8, phdr.p_vaddr);
+    var src: [*]u8 = @intToPtr([*]u8, base + phdr.p_offset);
+    logger.log(.Debug, "copyMem: dest=0x{x}, src=0x{x}, len=0x{x}\r\n", .{ phdr.p_vaddr, base + phdr.p_offset, phdr.p_filesz });
+    efi.bs.copyMem(dest, src, phdr.p_filesz);
+    var zero_fill_count = phdr.p_memsz - phdr.p_filesz;
+    if (zero_fill_count > 0) {
+        logger.log(.Debug, "zero fill: start=0x{x}, len=0x{x}\r\n", .{ phdr.p_vaddr + phdr.p_filesz, zero_fill_count });
+        efi.bs.setMem(@intToPtr([*]u8, phdr.p_vaddr + phdr.p_filesz), zero_fill_count, 0);
+    }
 }
 
 fn readAndAllocate(file: *uefi.protocols.FileProtocol, size: *usize, buffer: *[*]align(8) u8) !void {
