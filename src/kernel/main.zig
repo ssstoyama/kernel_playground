@@ -2,14 +2,11 @@ const uefi = @import("std").os.uefi;
 // var global: u8 = undefined;
 
 export fn kernel_main() void {
-    while (true) {}
     halt();
 }
 
 fn halt() void {
-    while (true) {
-        asm volatile ("hlt");
-    }
+    while (true) asm volatile ("hlt");
 }
 
 const FrameBufferConfig = struct {

@@ -40,6 +40,7 @@ fn efiMain() !void {
         frame_buffer_config.vertical_resolution,
     });
     const writer = efi.PixelWriter.init(&frame_buffer_config);
+    _ = writer;
 
     var mmap = efi.MemoryMap{};
     try getMemoryMap(&mmap);
@@ -114,32 +115,32 @@ fn efiMain() !void {
     logger.log(.Debug, "kernel_first_addr=0x{x}, kernel_last_addr=0x{x}\r\n", .{ kernel_first_addr, kernel_last_addr });
     logger.log(.Debug, "entry_point={x}, kernel_entry={*}\r\n", .{ entry_point, kernel_entry });
 
-    // try exitBootServices(mmap.map_key);
+    try exitBootServices(mmap.map_key);
 
     {
         var x: usize = 0;
-        while (x < 10) : (x += 1) {
+        while (x < 200) : (x += 1) {
             var y: usize = 0;
             while (y < 200) : (y += 1) {
                 var p = @ptrCast([*]u8, &frame_buffer_config.frame_buffer[4 * (frame_buffer_config.pixels_per_scan_line * y + x)]);
                 p[0] = 255;
-                p[1] = 255;
-                p[2] = 255;
+                p[1] = 0;
+                p[2] = 0;
             }
         }
     }
 
     kernel_entry();
-    while (true) {}
 
     {
         var x: usize = 0;
-        // while (x < frame_buffer_config.horizontal_resolution) : (x += 1) {
-        while (x < 30) : (x += 1) {
+        while (x < 150) : (x += 1) {
             var y: usize = 0;
-            // while (y < frame_buffer_config.vertical_resolution) : (y += 1) {
-            while (y < 30) : (y += 1) {
-                writer.write(x, y, .{ .r = 200 });
+            while (y < 150) : (y += 1) {
+                var p = @ptrCast([*]u8, &frame_buffer_config.frame_buffer[4 * (frame_buffer_config.pixels_per_scan_line * y + x)]);
+                p[0] = 0;
+                p[1] = 255;
+                p[2] = 0;
             }
         }
     }
