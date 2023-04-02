@@ -50,8 +50,8 @@ fn buildKernel(b: *std.Build, optimize: std.builtin.Mode) !*std.Build.CompileSte
         .default_target = .{
             .cpu_arch = .x86_64,
             .os_tag = .freestanding,
-            .abi = .none,
             .ofmt = .elf,
+            .abi = .none,
         },
     });
 
@@ -80,6 +80,7 @@ fn buildLoader(b: *std.Build, optimize: std.builtin.Mode) !*std.Build.CompileSte
         .target = CrossTarget{
             .cpu_arch = .x86_64,
             .os_tag = .uefi,
+            .ofmt = .coff,
             .abi = .msvc,
         },
         .optimize = optimize,

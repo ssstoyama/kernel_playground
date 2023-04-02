@@ -48,12 +48,25 @@ pub fn init(system_table: *uefi.tables.SystemTable) !void {
     gop = graphics_output_protocol.?;
 }
 
+pub fn startKernel(entry_point: u64, boot_info: *BootInfo) void {
+    asm volatile (
+        \\ callq *%rax
+        :
+        : [entry_point] "{rax}" (entry_point),
+          [boot_info] "{rdi}" (boot_info),
+    );
+}
+
+pub const BootInfo = extern struct {
+    frame_buffer_config: *FrameBufferConfig,
+};
+
 pub const PixelFormat = enum(u8) {
     PixelRGBResv8BitPerColor = 1,
     PixelBGRResv8BitPerColor = 2,
 };
 
-pub const FrameBufferConfig = struct {
+pub const FrameBufferConfig = extern struct {
     frame_buffer: [*]u8,
     pixels_per_scan_line: u32,
     horizontal_resolution: u32,

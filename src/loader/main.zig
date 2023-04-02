@@ -5,11 +5,12 @@ const efi = @import("efi.zig");
 const logger = @import("logger.zig");
 const mem = @import("mem.zig");
 
-pub fn main() void {
-    efiMain() catch {
-        while (true) {}
-    };
+pub fn main() uefi.Status {
+    efiMain() catch return uefi.Status.LoadError;
+    return uefi.Status.Success;
 }
+
+var vv: u64 = 0b01010101;
 
 fn efiMain() !void {
     try efi.init(uefi.system_table);
@@ -34,10 +35,11 @@ fn efiMain() !void {
             else => unreachable,
         },
     };
-    logger.log(.Info, "frame_buffer={*}, horizontal={x}, vertical={x}\r\n", .{
+    logger.log(.Info, "frame_buffer={*}, horizontal={x}, vertical={x}, scan_line={x}\r\n", .{
         frame_buffer_config.frame_buffer,
         frame_buffer_config.horizontal_resolution,
         frame_buffer_config.vertical_resolution,
+        frame_buffer_config.pixels_per_scan_line,
     });
     const writer = efi.PixelWriter.init(&frame_buffer_config);
     _ = writer;
@@ -110,12 +112,16 @@ fn efiMain() !void {
     try root_dir.close().err();
     logger.log(.Info, "free temporary memory\r\n", .{});
 
-    // カーネル実行
-    const kernel_entry = @intToPtr(*fn () callconv(.C) void, entry_point);
+    const kernel_entry = @intToPtr(*fn (*u64) callconv(.C) *u64, entry_point);
     logger.log(.Debug, "kernel_first_addr=0x{x}, kernel_last_addr=0x{x}\r\n", .{ kernel_first_addr, kernel_last_addr });
     logger.log(.Debug, "entry_point={x}, kernel_entry={*}\r\n", .{ entry_point, kernel_entry });
 
-    try exitBootServices(mmap.map_key);
+    var v: u64 = 0b10101010;
+    var v_ptr = &v;
+    logger.log(.Debug, "v={d}, v=0x{x}, v_ptr={*}\r\n", .{ v, v, v_ptr });
+    logger.log(.Debug, "vv={d}, vv=0x{x}, vv_ptr={*}\r\n", .{ vv, vv, &vv });
+
+    // try exitBootServices(mmap.map_key);
 
     {
         var x: usize = 0;
@@ -130,7 +136,24 @@ fn efiMain() !void {
         }
     }
 
-    kernel_entry();
+    // _ = asm volatile ("mov %%rdi, %%rax"
+    // : [ret] "={rax}" (-> u64),
+    // : [entry_point] "{rdi}" (entry_point),
+    // );
+    // asm volatile ("callq *%rax");
+    // const ret = asm volatile (
+    // \\ callq *%rax
+    // : [ret] "{rax}" (-> *u64),
+    // : [entry_point] "{rax}" (entry_point),
+    //   [vv] "{rdi}" (&vv),
+    // );
+    // logger.log(.Debug, "{d}, {*}\n", .{ ret, &ret });
+    // startKernel(entry_point);
+    // const ret = kernel_entry(&vv);
+    // logger.log(.Debug, "{*}\n", .{ret});
+    efi.startKernel(entry_point, &efi.BootInfo{
+        .frame_buffer_config = &frame_buffer_config,
+    });
 
     {
         var x: usize = 0;
@@ -146,6 +169,7 @@ fn efiMain() !void {
     }
 
     while (true) {}
+    return uefi.Status.LoadError.err();
 }
 
 fn loadProgramSegment(base: usize, phdr: elf.Elf64_Phdr) void {
