@@ -21,9 +21,9 @@ pub fn draw(frame_buffer_config: *const efi.FrameBufferConfig, x: usize, y: usiz
 const Word = [10][8]u1;
 const words = [_]Word{
     word_h,
-    word_l,
-    word_l,
     word_e,
+    word_l,
+    word_l,
     word_o,
     word_space,
     word_w,
