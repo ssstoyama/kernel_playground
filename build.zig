@@ -1,8 +1,8 @@
 const std = @import("std");
 const CrossTarget = std.zig.CrossTarget;
 
-const LoaderPath = "src/loader/main.zig";
-const KernelPath = "src/kernel/main.zig";
+const LoaderPath = "src/boot.zig";
+const KernelPath = "src/kernel.zig";
 
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{

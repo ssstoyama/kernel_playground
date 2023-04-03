@@ -1,59 +1,22 @@
-const std = @import("std");
-const uefi = @import("std").os.uefi;
+const efi = @import("efi.zig");
 
-export fn kernel_main(boot_info: *BootInfo) void {
-    var frame_buffer_config = boot_info.frame_buffer_config;
+pub fn draw(frame_buffer_config: *const efi.FrameBufferConfig, x: usize, y: usize) void {
     {
-        var x: usize = 0;
-        while (x < frame_buffer_config.horizontal_resolution) : (x += 1) {
-            var y: usize = 0;
-            while (y < frame_buffer_config.vertical_resolution) : (y += 1) {
-                var p = @ptrCast([*]u8, &frame_buffer_config.frame_buffer[4 * (frame_buffer_config.pixels_per_scan_line * y + x)]);
-                p[0] = 255;
-                p[1] = 255;
-                p[2] = 255;
-            }
-        }
-    }
-    {
-        var x: usize = 0;
-        const y: usize = 0;
+        var base_x: usize = x;
         for (words) |word| {
             for (word, 0..) |r, dy| {
                 for (r, 0..) |c, dx| {
                     if (c == 0) continue;
-                    var p = @ptrCast([*]u8, &frame_buffer_config.frame_buffer[4 * (frame_buffer_config.pixels_per_scan_line * (y + dy) + (x + dx))]);
+                    var p = @ptrCast([*]u8, &frame_buffer_config.frame_buffer[4 * (frame_buffer_config.pixels_per_scan_line * (y + dy) + (base_x + dx))]);
                     p[0] = 0;
                     p[1] = 0;
                     p[2] = 0;
                 }
             }
-            x += 8;
+            base_x += 8;
         }
     }
-    halt();
 }
-
-fn halt() void {
-    while (true) asm volatile ("hlt");
-}
-
-const BootInfo = extern struct {
-    frame_buffer_config: *FrameBufferConfig,
-};
-
-const FrameBufferConfig = struct {
-    frame_buffer: [*]u8,
-    pixels_per_scan_line: u32,
-    horizontal_resolution: u32,
-    vertical_resolution: u32,
-    pixel_format: PixelFormat,
-};
-
-pub const PixelFormat = enum(u8) {
-    PixelRGBResv8BitPerColor = 1,
-    PixelBGRResv8BitPerColor = 2,
-};
 
 const Word = [10][8]u1;
 const words = [_]Word{
