@@ -19,6 +19,9 @@ pub const PixelWriter = union(enum) {
     RGB: RGBPixelWriter,
     BGR: BGRPixelWriter,
 
+    var fg_color: PixelColor = PixelColor.black();
+    var bg_color: PixelColor = PixelColor.white();
+
     pub fn init(config: *const FrameBufferConfig) PixelWriter {
         switch (config.pixel_format) {
             PixelFormat.PixelRGBResv8BitPerColor => return PixelWriter{ .RGB = RGBPixelWriter{ .config = config } },
@@ -33,6 +36,20 @@ pub const PixelWriter = union(enum) {
     pub fn write(self: PixelWriter, x: usize, y: usize, color: PixelColor) void {
         switch (self) {
             inline else => |case| case.write(x, y, color),
+        }
+    }
+
+    pub fn clearScreen(self: PixelWriter) void {
+        switch (self) {
+            inline else => |case| {
+                var x: usize = 0;
+                while (x < case.config.horizontal_resolution) : (x += 1) {
+                    var y: usize = 0;
+                    while (y < case.config.vertical_resolution) : (y += 1) {
+                        case.write(x, y, bg_color);
+                    }
+                }
+            },
         }
     }
 };
