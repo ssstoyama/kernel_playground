@@ -11,7 +11,7 @@ export fn kernel_main(boot_info: *BootInfo) void {
 
     var con = console.Console.init(&pixel_writer);
 
-    con.put("Hello World\n");
+    con.put("Hello World!\nWelcome to ZigOS!\n");
 
     util.halt();
 }

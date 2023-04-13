@@ -14,7 +14,7 @@ fn getFont(c: u8) ?[]u8 {
     return words[index .. index + FontHeight];
 }
 
-fn writeAscii(writer: *const graphics.PixelWriter, x: usize, y: usize, c: u8, color: graphics.PixelColor) void {
+pub fn writeAscii(writer: *const graphics.PixelWriter, x: usize, y: usize, c: u8, color: graphics.PixelColor) void {
     const font = getFont(c) orelse return;
     {
         var dy: usize = 0;
