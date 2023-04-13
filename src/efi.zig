@@ -13,6 +13,9 @@ pub fn init() uefi.Status {
     con_out = system_table.con_out orelse return .Unsupported;
     bs = system_table.boot_services orelse return .Unsupported;
 
+    status = bs.setWatchdogTimer(0, 0, 0, null);
+    if (status != .Success) return status;
+
     var simple_file_system: ?*uefi.protocols.SimpleFileSystemProtocol = undefined;
     status = bs.locateProtocol(&uefi.protocols.SimpleFileSystemProtocol.guid, null, @ptrCast(*?*anyopaque, &simple_file_system));
     if (status != .Success) return status;
