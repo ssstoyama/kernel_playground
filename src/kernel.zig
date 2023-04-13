@@ -1,6 +1,7 @@
 const BootInfo = @import("efi.zig").BootInfo;
 const util = @import("util.zig");
 const graphics = @import("graphics.zig");
+const font = @import("font.zig");
 
 export fn kernel_main(boot_info: *BootInfo) void {
     const frame_buffer_config = boot_info.frame_buffer_config;
@@ -15,6 +16,8 @@ export fn kernel_main(boot_info: *BootInfo) void {
             }
         }
     }
+
+    font.writeString(pixel_writer, 100, 100, "Hello World\n", graphics.PixelColor.white());
 
     util.halt();
 }

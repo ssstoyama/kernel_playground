@@ -68,6 +68,7 @@ fn buildKernel(b: *std.Build, optimize: std.builtin.Mode) !*std.Build.CompileSte
     kernel.red_zone = false;
     kernel.is_linking_libc = false;
     kernel.is_linking_libcpp = false;
+    kernel.addObjectFile("src/ascii.o");
     kernel.setOutputDir("fs");
     kernel.install();
     return kernel;
