@@ -35,13 +35,32 @@ pub const Console = struct {
                 c,
                 self.fg_color,
             );
+            self.history[self.cursor_row][self.cursor_col] = c;
             self.cursor_col += 1;
         }
     }
 
     fn newLine(self: *Self) void {
         self.cursor_col = 0;
-        self.cursor_row += 1;
+        if (self.cursor_row < Rows - 1) {
+            self.cursor_row += 1;
+            return;
+        }
+        self.clear();
+        {
+            var row: usize = 0;
+            while (row < Rows - 1) : (row += 1) {
+                std.mem.copy(u8, &self.history[row], &self.history[row + 1]);
+                font.writeString(
+                    self.writer,
+                    0,
+                    row * font.FontHeight,
+                    &self.history[row],
+                    self.fg_color,
+                );
+            }
+        }
+        self.history[Rows - 1] = [_]u8{0} ** Cols;
     }
 
     fn clear(self: *Self) void {
