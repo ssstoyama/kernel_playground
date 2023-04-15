@@ -4,6 +4,7 @@ const graphics = @import("graphics.zig");
 const font = @import("font.zig");
 const console = @import("console.zig");
 const logger = @import("logger.zig");
+const pci = @import("pci.zig");
 
 export fn kernel_main(boot_info: *BootInfo) void {
     const frame_buffer_config = boot_info.frame_buffer_config;
@@ -11,10 +12,15 @@ export fn kernel_main(boot_info: *BootInfo) void {
     pixel_writer.clearScreen();
     var con = console.Console.init(&pixel_writer);
     logger.init(con, .Debug);
+    logger.log(.Info, "start kernel\n", .{});
 
-    logger.log(.Debug, "Debug: {}\n", .{logger.LogLevel.Debug});
-    logger.log(.Info, "Info: {}\n", .{logger.LogLevel.Info});
-    logger.log(.Warn, "Warn: {}\n", .{logger.LogLevel.Warn});
+    pci.scanAllBuses();
+    logger.log(.Info, "scan all buses\n", .{});
 
     util.halt();
+}
+
+test "kernel test" {
+    const std = @import("std");
+    std.testing.refAllDeclsRecursive(@This());
 }
