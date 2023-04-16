@@ -1,18 +1,19 @@
 const std = @import("std");
 const logger = @import("logger.zig");
 
-const Bus = u8;
-const Device = u5;
-const Function = u3;
+const BusNum = u8;
+const DeviceNum = u5;
+const FuncNum = u3;
+
 const ConfigSpaceAddress = packed struct {
     offset: u8 = 0,
-    function: Function = 0,
-    device: Device = 0,
-    bus: Bus = 0,
+    function: FuncNum = 0,
+    device: DeviceNum = 0,
+    bus: BusNum = 0,
     reserved: u7 = 0,
     enable: u1 = 0,
 
-    pub fn init(bus: Bus, device: Device, function: Function, offset: u8) ConfigSpaceAddress {
+    pub fn init(bus: BusNum, device: DeviceNum, function: FuncNum, offset: u8) ConfigSpaceAddress {
         return ConfigSpaceAddress{
             .offset = offset & 0xfc,
             .function = function,
@@ -27,33 +28,110 @@ const ConfigSpaceAddress = packed struct {
         return @bitCast(u32, self);
     }
 };
+
+const ClassCode = struct {
+    class: u8,
+    sub: u8,
+    progIF: u8,
+
+    const Self = @This();
+
+    pub fn isPCI2PCI(self: Self) bool {
+        return self.class == 0x6 and self.sub == 0x4;
+    }
+};
+
 const ConfigAddress: u12 = 0xcf8;
 const ConfigData: u12 = 0xcfc;
 
 pub fn scanAllBuses() void {
-    var bus: usize = 0;
-    while (bus < 256) : (bus += 1) {
-        var device: usize = 0;
-        while (device < 32) : (device += 1) {
-            scanDevice(@intCast(Bus, bus), @intCast(Device, device));
+    const header_type = readHeaderType(0, 0, 0);
+    if (!isMultiFunction(header_type)) {
+        logger.log(.Info, "is single function device\n", .{});
+        scanBus(0);
+        return;
+    }
+    logger.log(.Debug, "is multi function device: bus=0x{x}, device=0x{x}, function=0x{x}\n", .{ 0, 0, 0 });
+    var function: usize = 0;
+    while (function < 8) : (function += 1) {
+        if (readVendorID(0, 0, @intCast(FuncNum, function)) == 0xffff) continue;
+        scanBus(@truncate(BusNum, function));
+    }
+}
+
+fn scanBus(bus: BusNum) void {
+    var device: DeviceNum = 0;
+    while (device < 32) : (device += 1) {
+        scanDevice(bus, device);
+    }
+}
+
+fn scanDevice(bus: BusNum, device: DeviceNum) void {
+    const vendorID = readVendorID(bus, device, 0);
+    if (vendorID == 0xffff) {
+        return;
+    }
+    logger.log(.Debug, "vendor id: 0x{x}\n", .{vendorID});
+    scanFunction(bus, device, 0);
+    const header_type = readHeaderType(bus, device, 0);
+    logger.log(.Debug, "header type: 0x{x}\n", .{header_type});
+    if (isMultiFunction(header_type)) {
+        logger.log(.Debug, "is multi function device: bus=0x{x}, device=0x{x}, function=0x{x}\n", .{ bus, device, 0 });
+        var function: usize = 1;
+        while (function < 8) : (function += 1) {
+            if (readVendorID(bus, device, @intCast(FuncNum, function)) == 0xffff) continue;
+            logger.log(.Debug, "vendor id: 0x{x}\n", .{readVendorID(bus, device, @intCast(FuncNum, function))});
+            scanFunction(bus, device, @intCast(FuncNum, function));
         }
     }
 }
 
-fn scanDevice(bus: Bus, device: Device) void {
-    var function: Function = 0;
-
-    const vendorID = readVendorID(bus, device, function);
-    if (vendorID == 0xffff) {
-        return;
-    }
-    logger.log(.Debug, "Vendor ID: 0x{x}\n", .{vendorID});
+fn scanFunction(bus: BusNum, device: DeviceNum, function: FuncNum) void {
+    const class_code = readClassCode(bus, device, function);
+    logger.log(.Info, "class code={}\n", .{class_code});
+    if (!class_code.isPCI2PCI()) return;
+    const secondary = readSecondaryBus(bus, device, function);
+    logger.log(.Debug, "secondary bus: 0x{x}\n", .{secondary});
+    scanBus(secondary);
 }
 
-fn readVendorID(bus: Bus, device: Device, function: Function) u16 {
-    const addr = ConfigSpaceAddress.init(bus, device, function, 0).address();
+fn readVendorID(bus: BusNum, device: DeviceNum, function: FuncNum) u16 {
+    const addr = ConfigSpaceAddress.init(bus, device, function, 0x0).address();
     writeAddress(addr);
     return @truncate(u16, readData());
+}
+
+fn readDeviceID(bus: BusNum, device: DeviceNum, function: FuncNum) u16 {
+    const addr = ConfigSpaceAddress.init(bus, device, function, 0x0).address();
+    writeAddress(addr);
+    return @truncate(u16, readData() >> 16);
+}
+
+fn readClassCode(bus: BusNum, device: DeviceNum, function: FuncNum) ClassCode {
+    const addr = ConfigSpaceAddress.init(bus, device, function, 0x8).address();
+    writeAddress(addr);
+    const data = readData();
+    return ClassCode{
+        .class = @truncate(u8, data >> 24),
+        .sub = @truncate(u8, data >> 16),
+        .progIF = @truncate(u8, data >> 8),
+    };
+}
+
+fn readHeaderType(bus: BusNum, device: DeviceNum, function: FuncNum) u8 {
+    const addr = ConfigSpaceAddress.init(bus, device, function, 0xc).address();
+    writeAddress(addr);
+    return @truncate(u8, readData() >> 16);
+}
+
+fn readSecondaryBus(bus: BusNum, device: DeviceNum, function: FuncNum) BusNum {
+    const addr = ConfigSpaceAddress.init(bus, device, function, 0x18).address();
+    writeAddress(addr);
+    return @truncate(BusNum, readData() >> 8);
+}
+
+fn isMultiFunction(header_type: u8) bool {
+    return header_type & 0x80 != 0;
 }
 
 fn writeAddress(addr: u32) void {
