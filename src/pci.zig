@@ -41,13 +41,24 @@ const ClassCode = struct {
     }
 };
 
+const PCIDevice = struct {
+    bus: BusNum,
+    device: DeviceNum,
+    function: FuncNum,
+    vendorID: u16,
+    deviceID: u16,
+    classCode: ClassCode,
+    headerType: u8,
+    bar: u64,
+};
+
 const ConfigAddress: u12 = 0xcf8;
 const ConfigData: u12 = 0xcfc;
 
 pub fn scanAllBuses() void {
     const header_type = readHeaderType(0, 0, 0);
     if (!isMultiFunction(header_type)) {
-        logger.log(.Info, "is single function device\n", .{});
+        logger.log(.Debug, "is single function device\n", .{});
         scanBus(0);
         return;
     }
@@ -128,6 +139,14 @@ fn readSecondaryBus(bus: BusNum, device: DeviceNum, function: FuncNum) BusNum {
     const addr = ConfigSpaceAddress.init(bus, device, function, 0x18).address();
     writeAddress(addr);
     return @truncate(BusNum, readData() >> 8);
+}
+
+fn readBar(bus: BusNum, device: DeviceNum, function: FuncNum) u64 {
+    writeAddress(ConfigSpaceAddress.init(bus, device, function, 0x10).address());
+    const bar0 = readData();
+    writeAddress(ConfigSpaceAddress.init(bus, device, function, 0x14).address());
+    const bar1 = readData();
+    return (@as(u64, bar1) << 32) | (@as(u64, bar0) & 0xffff_fff0);
 }
 
 fn isMultiFunction(header_type: u8) bool {
