@@ -1,6 +1,9 @@
 const std = @import("std");
 const logger = @import("logger.zig");
 
+pub var devices: [64]Device = [_]Device{undefined} ** 64;
+pub var device_count: u6 = 0;
+
 const BusNum = u8;
 const DeviceNum = u5;
 const FuncNum = u3;
@@ -36,26 +39,58 @@ const ClassCode = struct {
 
     const Self = @This();
 
-    pub fn isPCI2PCI(self: Self) bool {
+    pub fn is_pci2pci(self: Self) bool {
         return self.class == 0x6 and self.sub == 0x4;
+    }
+
+    pub fn is_xhci(self: Self) bool {
+        return self.class == 0xc and self.sub == 0x3 and self.progIF == 0x30;
     }
 };
 
-const PCIDevice = struct {
+pub const Device = struct {
     bus: BusNum,
     device: DeviceNum,
     function: FuncNum,
-    vendorID: u16,
-    deviceID: u16,
-    classCode: ClassCode,
-    headerType: u8,
-    bar: u64,
+    header_type: u8,
+    class_code: ClassCode,
+
+    pub fn bar32(self: Device, index: u8) u32 {
+        return readBar(self.bus, self.device, self.function, index);
+    }
+
+    pub fn bar64(self: Device, index: u8) u64 {
+        const bar0 = readBar(self.bus, self.device, self.function, index);
+        const bar1 = readBar(self.bus, self.device, self.function, index + 1);
+        // I/O マップ用の BAR 非対応
+        if (bar0 & 0x1 == 1) unreachable;
+        return (@as(u64, bar1) << 32) | (@as(u64, bar0) & 0xffff_fff0);
+    }
+};
+
+pub const DeviceIterator = struct {
+    current: usize = 0,
+
+    pub fn init() DeviceIterator {
+        return DeviceIterator{};
+    }
+
+    pub fn next(self: *DeviceIterator) ?Device {
+        if (self.current >= device_count) return null;
+        const device = devices[self.current];
+        self.current += 1;
+        return device;
+    }
 };
 
 const ConfigAddress: u12 = 0xcf8;
 const ConfigData: u12 = 0xcfc;
 
-pub fn scanAllBuses() void {
+pub fn init() void {
+    scanAllBuses();
+}
+
+fn scanAllBuses() void {
     const header_type = readHeaderType(0, 0, 0);
     if (!isMultiFunction(header_type)) {
         logger.log(.Debug, "is single function device\n", .{});
@@ -68,12 +103,13 @@ pub fn scanAllBuses() void {
         if (readVendorID(0, 0, @intCast(FuncNum, function)) == 0xffff) continue;
         scanBus(@truncate(BusNum, function));
     }
+    logger.log(.Debug, "scan al buses\n", .{});
 }
 
 fn scanBus(bus: BusNum) void {
-    var device: DeviceNum = 0;
+    var device: usize = 0;
     while (device < 32) : (device += 1) {
-        scanDevice(bus, device);
+        scanDevice(bus, @truncate(DeviceNum, device));
     }
 }
 
@@ -99,8 +135,17 @@ fn scanDevice(bus: BusNum, device: DeviceNum) void {
 
 fn scanFunction(bus: BusNum, device: DeviceNum, function: FuncNum) void {
     const class_code = readClassCode(bus, device, function);
-    logger.log(.Info, "class code={}\n", .{class_code});
-    if (!class_code.isPCI2PCI()) return;
+    logger.log(.Debug, "class code={}\n", .{class_code});
+    devices[device_count] = Device{
+        .bus = bus,
+        .device = device,
+        .function = function,
+        .header_type = readHeaderType(bus, device, function),
+        .class_code = class_code,
+    };
+    device_count += 1;
+    logger.log(.Debug, "device count: {d}\n", .{device_count});
+    if (!class_code.is_pci2pci()) return;
     const secondary = readSecondaryBus(bus, device, function);
     logger.log(.Debug, "secondary bus: 0x{x}\n", .{secondary});
     scanBus(secondary);
@@ -141,12 +186,9 @@ fn readSecondaryBus(bus: BusNum, device: DeviceNum, function: FuncNum) BusNum {
     return @truncate(BusNum, readData() >> 8);
 }
 
-fn readBar(bus: BusNum, device: DeviceNum, function: FuncNum) u64 {
-    writeAddress(ConfigSpaceAddress.init(bus, device, function, 0x10).address());
-    const bar0 = readData();
-    writeAddress(ConfigSpaceAddress.init(bus, device, function, 0x14).address());
-    const bar1 = readData();
-    return (@as(u64, bar1) << 32) | (@as(u64, bar0) & 0xffff_fff0);
+fn readBar(bus: BusNum, device: DeviceNum, function: FuncNum, index: u8) u32 {
+    writeAddress(ConfigSpaceAddress.init(bus, device, function, 0x10 + index * 4).address());
+    return readData();
 }
 
 fn isMultiFunction(header_type: u8) bool {

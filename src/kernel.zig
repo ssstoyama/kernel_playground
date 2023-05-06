@@ -5,18 +5,31 @@ const font = @import("font.zig");
 const console = @import("console.zig");
 const logger = @import("logger.zig");
 const pci = @import("pci.zig");
+const xhci = @import("driver/xhci.zig");
 
 export fn kernel_main(boot_info: *BootInfo) void {
     const frame_buffer_config = boot_info.frame_buffer_config;
     const pixel_writer = graphics.PixelWriter.init(frame_buffer_config);
     pixel_writer.clearScreen();
     var con = console.Console.init(&pixel_writer);
-    logger.init(con, .Debug);
+    logger.init(con, .Info);
     logger.log(.Info, "start kernel\n", .{});
 
-    pci.scanAllBuses();
-    logger.log(.Info, "scan all buses\n", .{});
+    pci.init();
+    logger.log(.Info, "initialized pci\n", .{});
 
+    var xhc: xhci.Controller = undefined;
+    var device_iter = pci.DeviceIterator.init();
+    while (device_iter.next()) |device| {
+        logger.log(.Info, "pci device: {x} {x} {x} {}\n", .{ device.bus, device.device, device.function, device.class_code });
+        if (device.class_code.is_xhci()) {
+            const bar = device.bar64(0);
+            xhc = xhci.Controller.init(bar);
+            logger.log(.Info, "initialized xhci controller: bar=0x{x}\n", .{bar});
+        }
+    }
+
+    logger.log(.Info, "halt", .{});
     util.halt();
 }
 

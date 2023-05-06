@@ -98,13 +98,15 @@ fn qemuCommand(b: *std.Build) *std.Build.RunStep {
     const args = [_][]const u8{
         "qemu-system-x86_64",
         "-m",
-        "1G",
+        "4G",
         "-bios",
         "/usr/share/ovmf/OVMF.fd",
         "-hdd",
         "fat:rw:fs",
         "-device",
-        "qemu-xhci,id=xhci",
+        "nec-usb-xhci,id=xhci",
+        "-device",
+        "usb-kbd",
         "-monitor",
         "stdio",
     };
