@@ -29,6 +29,10 @@ export fn kernel_main(boot_info: *BootInfo) void {
         }
     }
 
+    logger.log(.Info, "start xhc\n", .{});
+    xhc.start();
+    logger.log(.Info, "started xhc\n", .{});
+
     logger.log(.Info, "halt", .{});
     util.halt();
 }
