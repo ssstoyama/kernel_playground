@@ -1,3 +1,6 @@
+const std = @import("std");
+const logger = @import("../logger.zig");
+
 pub const Capability = packed struct {
     caplength: u8,
     rsvd: u8 = 0,
@@ -25,10 +28,21 @@ pub const Operational = packed struct {
     pagesize: u32,
     rsvd1: u64,
     dnctrl: u32,
-    crcr: u16,
-    rsvd2: u40,
+    crcr: CRCR,
+    rsvdz1: u64,
+    rsvdz2: u64,
     dcbaap: u64,
     config: u32,
+
+    pub fn setCRCR(self: *Operational, ptr: u64) void {
+        self.crcr = CRCR{
+            .ring_cycle_state = @truncate(u1, ptr),
+            .command_stop = @truncate(u1, ptr >> 1),
+            .command_abort = @truncate(u1, ptr >> 2),
+            .command_ring_running = @truncate(u1, ptr >> 3),
+            .command_ring_pointer = @truncate(u58, ptr >> 5),
+        };
+    }
 };
 
 const USBCMD = packed struct {
@@ -63,6 +77,19 @@ const USBSTS = packed struct {
     cnr: u1,
     hce: u1,
     rsvd2: u19 = 0,
+};
+
+const CRCR = packed struct {
+    ring_cycle_state: u1,
+    command_stop: u1,
+    command_abort: u1,
+    command_ring_running: u1,
+    rsvd1: u2 = 0,
+    command_ring_pointer: u58,
+
+    pub fn pointer(self: CRCR) u64 {
+        return self.command_ring_pointer << 5;
+    }
 };
 
 const PortRegisterSet = struct {

@@ -3,12 +3,17 @@ const pci = @import("../pci.zig");
 const logger = @import("../logger.zig");
 const registers = @import("./registers.zig");
 const context = @import("./context.zig");
+const trb = @import("./trb.zig");
+const ring = @import("./ring.zig");
 
 var device_context_base_address_array: [256]*context.DeviceContext align(64) = [_]*context.DeviceContext{undefined} ** 256;
+var command_ring_buf: [32]trb.TRB align(64) = [_]trb.TRB{undefined} ** 32;
 
 pub const Controller = struct {
     capability: *const registers.Capability,
     operational: *registers.Operational,
+
+    command_ring: ring.TRBRing = undefined,
 
     const Self = @This();
 
@@ -34,9 +39,16 @@ pub const Controller = struct {
 
         self.reset();
 
+        // Device Context 設定
         logger.log(.Debug, "hcsparams1.max_slots = 0x{x}\n", .{self.capability.hcsparams1.max_slots});
-        logger.log(.Debug, "dcbaap = {*}\n", .{&device_context_base_address_array});
         self.operational.dcbaap = @ptrToInt(&device_context_base_address_array);
+        logger.log(.Debug, "dcbaap = {*}\n", .{&device_context_base_address_array});
+
+        // Command Ring 設定
+        self.command_ring = ring.TRBRing.init(&command_ring_buf, command_ring_buf.len);
+        logger.log(.Debug, "comaind_ring.pointer = 0x{x}, buf = {*}\n", .{ self.command_ring.pointer(), &command_ring_buf });
+        self.operational.setCRCR(self.command_ring.pointer());
+        logger.log(.Debug, "operational.crcr.cycle_state = {d}, pointer = 0x{x}\n", .{ self.operational.crcr.ring_cycle_state, self.operational.crcr.pointer() });
     }
 
     fn reset(self: *Self) void {
