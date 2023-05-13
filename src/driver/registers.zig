@@ -92,9 +92,57 @@ const CRCR = packed struct {
     }
 };
 
-const PortRegisterSet = struct {
+const PortRegisterSet = packed struct {
     portsc: u32,
     portpmsc: u32,
     portli: u32,
     porthlpmc: u32,
 };
+
+pub const Runtime = packed struct {
+    MFINDEX: MFINDEX,
+
+    pub fn getInterrupterRegisterSet(self: *Runtime) [*]InterrupterRegisterSet {
+        return @intToPtr([*]InterrupterRegisterSet, @ptrToInt(self) + 0x20);
+    }
+};
+
+const MFINDEX = packed struct {
+    microframe_index: u14,
+    rsvd: u18 = 0,
+};
+
+const InterrupterRegisterSet = packed struct {
+    iman: u32,
+    imod: u32,
+    erstsz: u32,
+    rsvd1: u32 = 0,
+    erstba: ERSTBA,
+    erdp: ERDP,
+};
+
+const ERSTBA = packed struct {
+    rsvd: u6 = 0,
+    event_ring_segment_table_base_address_register: u58,
+};
+
+const ERDP = packed struct {
+    dequeue_erst_segment_index: u3,
+    event_handler_busy: u1,
+    event_ring_dequeue_pointer: u60,
+};
+
+pub const Doorbell = struct {};
+
+const testing = std.testing;
+test "Runtime" {
+    var runtime: Runtime align(64) = Runtime{
+        .MFINDEX = MFINDEX{
+            .microframe_index = 0,
+        },
+    };
+
+    var ptr = runtime.getInterrupterRegisterSet();
+
+    try testing.expect(@ptrToInt(&runtime) + 0x20 == @ptrToInt(ptr));
+}

@@ -45,6 +45,21 @@ pub const TRBRing = struct {
     }
 };
 
+pub const EventRingSegmentTableEntry = struct {
+    // Offset 00h
+    // rsvd1: u6 = 0,
+    ring_segment_base_address: u64,
+    // Offset 08h
+    ring_segment_size: u16,
+    rsvd2: u16 = 0,
+    // Offset 0Ch
+    rsvd3: u32 = 0,
+};
+
+pub fn calcEventRingSegmentAddress(ers: [*]trb.TRB, size: u6) u64 {
+    return @ptrToInt(ers) | size;
+}
+
 const testing = std.testing;
 test "TRBRing" {
     var ring: [3]trb.TRB align(64) = [_]trb.TRB{undefined} ** 3;
