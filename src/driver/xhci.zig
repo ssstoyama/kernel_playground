@@ -67,6 +67,21 @@ pub const Controller = struct {
             .ring_segment_base_address = ring.calcEventRingSegmentAddress(&event_ring_segment_1, 32),
             .ring_segment_size = 32,
         };
+        var interrupters: [*]registers.InterrupterRegisterSet = self.runtime.getInterrupterRegisterSet();
+        var primary_interrupter: registers.InterrupterRegisterSet = interrupters[0];
+        primary_interrupter.erstsz = 1;
+        primary_interrupter.erstba.event_ring_segment_table_base_address_register = @ptrToInt(&event_ring_segment_table);
+        logger.log(.Debug, "event_ring_segment_table: pointer=0x{x}\n", .{@ptrToInt(&event_ring_segment_table)});
+
+        primary_interrupter.iman.interrupt_pending = 1;
+        primary_interrupter.iman.interrupt_enable = 1;
+        self.operational.usbcmd.inte = 1;
+        logger.log(.Debug, "enabled interrupter\n", .{});
+
+        self.operational.usbcmd.rs = 1;
+        logger.log(.Debug, "usbcmd.rs = 1\n", .{});
+        while (self.operational.usbsts.hch == 1) {}
+        logger.log(.Debug, "start xhci controller\n", .{});
     }
 
     fn reset(self: *Self) void {

@@ -112,8 +112,8 @@ const MFINDEX = packed struct {
     rsvd: u18 = 0,
 };
 
-const InterrupterRegisterSet = packed struct {
-    iman: u32,
+pub const InterrupterRegisterSet = packed struct {
+    iman: IMAN,
     imod: u32,
     erstsz: u32,
     rsvd1: u32 = 0,
@@ -121,9 +121,14 @@ const InterrupterRegisterSet = packed struct {
     erdp: ERDP,
 };
 
+const IMAN = packed struct {
+    interrupt_pending: u1,
+    interrupt_enable: u1,
+    rsvd: u30 = 0,
+};
+
 const ERSTBA = packed struct {
-    rsvd: u6 = 0,
-    event_ring_segment_table_base_address_register: u58,
+    event_ring_segment_table_base_address_register: u64,
 };
 
 const ERDP = packed struct {
