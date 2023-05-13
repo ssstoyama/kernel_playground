@@ -23,15 +23,22 @@ const HCSPARAMS1 = packed struct {
 };
 
 pub const Operational = packed struct {
+    // Offset 00h
     usbcmd: USBCMD,
+    // Offset 04h
     usbsts: USBSTS,
+    // Offset 08h
     pagesize: u32,
     rsvd1: u64,
+    // Offset 14h
     dnctrl: u32,
+    // Offset 18h
     crcr: CRCR,
     rsvdz1: u64,
     rsvdz2: u64,
+    // Offset 30h
     dcbaap: u64,
+    // Offset 38h
     config: u32,
 
     pub fn setCRCR(self: *Operational, ptr: u64) void {
@@ -42,6 +49,10 @@ pub const Operational = packed struct {
             .command_ring_running = @truncate(u1, ptr >> 3),
             .command_ring_pointer = @truncate(u58, ptr >> 5),
         };
+    }
+
+    pub fn getPortRegisterSet(self: *Operational) [*]PortRegisterSet {
+        return @intToPtr([*]PortRegisterSet, @ptrToInt(self) + 0x400);
     }
 };
 
@@ -92,11 +103,42 @@ const CRCR = packed struct {
     }
 };
 
-const PortRegisterSet = packed struct {
-    portsc: u32,
+pub const PortRegisterSet = packed struct {
+    portsc: PORTSC,
     portpmsc: u32,
     portli: u32,
     porthlpmc: u32,
+
+    pub fn isConnected(self: PortRegisterSet) bool {
+        return self.portsc.current_connect_status == 1;
+    }
+};
+
+const PORTSC = packed struct {
+    current_connect_status: u1,
+    port_enabled_disabled: u1,
+    rsvd1: u1 = 0,
+    over_current_active: u1,
+    port_reset: u1,
+    port_link_state: u4,
+    port_power: u1,
+    port_speed: u4,
+    port_indictor_control: u2,
+    port_link_state_write_strobe: u1,
+    connect_status_change: u1,
+    port_enabeld_disabled_change: u1,
+    warm_port_reset_change: u1,
+    over_current_change: u1,
+    port_reset_change: u1,
+    port_link_state_change: u1,
+    port_config_error_change: u1,
+    cold_attach_status: u1,
+    wake_on_connect_enable: u1,
+    wake_on_disconnect_enable: u1,
+    wake_on_over_current_enable: u1,
+    rsvd2: u2 = 0,
+    device_removable: u1,
+    warm_port_reset: u1,
 };
 
 pub const Runtime = packed struct {

@@ -33,6 +33,16 @@ export fn kernel_main(boot_info: *BootInfo) void {
     xhc.start();
     logger.log(.Info, "started xhc\n", .{});
 
+    {
+        logger.changeLevel(.Debug);
+        defer logger.changeLevel(.Info);
+        var i: usize = 1;
+        while (i < xhc.getMaxPorts()) : (i += 1) {
+            var port = xhc.getPort(@truncate(u8, i));
+            logger.log(.Debug, "port{d}: connected={}\n", .{ i, port.isConnected() });
+        }
+    }
+
     logger.log(.Info, "halt", .{});
     util.halt();
 }

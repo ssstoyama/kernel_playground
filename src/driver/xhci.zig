@@ -84,6 +84,14 @@ pub const Controller = struct {
         logger.log(.Debug, "start xhci controller\n", .{});
     }
 
+    pub fn getMaxPorts(self: Controller) u8 {
+        return self.capability.hcsparams1.max_ports;
+    }
+
+    pub fn getPort(self: Controller, num: u8) registers.PortRegisterSet {
+        return self.operational.getPortRegisterSet()[num];
+    }
+
     fn reset(self: *Self) void {
         self.operational.usbcmd.hcrst = 1;
         logger.log(.Debug, "usbcmd.hcrst = 1\n", .{});
