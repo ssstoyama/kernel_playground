@@ -108,10 +108,6 @@ pub const PortRegisterSet = packed struct {
     portpmsc: u32,
     portli: u32,
     porthlpmc: u32,
-
-    pub fn isConnected(self: PortRegisterSet) bool {
-        return self.portsc.current_connect_status == 1;
-    }
 };
 
 const PORTSC = packed struct {
@@ -156,7 +152,7 @@ const MFINDEX = packed struct {
 
 pub const InterrupterRegisterSet = packed struct {
     iman: IMAN,
-    imod: u32,
+    imod: IMOD,
     erstsz: u32,
     rsvd1: u32 = 0,
     erstba: ERSTBA,
@@ -167,6 +163,11 @@ const IMAN = packed struct {
     interrupt_pending: u1,
     interrupt_enable: u1,
     rsvd: u30 = 0,
+};
+
+const IMOD = packed struct {
+    interrupt_moderation_interval: u16,
+    interrupt_moderation_counter: u16,
 };
 
 const ERSTBA = packed struct {

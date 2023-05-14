@@ -40,6 +40,7 @@ export fn kernel_main(boot_info: *BootInfo) void {
         while (i < xhc.getMaxPorts()) : (i += 1) {
             var port = xhc.getPort(@truncate(u8, i));
             logger.log(.Debug, "port{d}: connected={}\n", .{ i, port.isConnected() });
+            if (port.isConnected()) {}
         }
     }
 

@@ -5,6 +5,7 @@ const registers = @import("./registers.zig");
 const context = @import("./context.zig");
 const trb = @import("./trb.zig");
 const ring = @import("./ring.zig");
+const port = @import("./port.zig");
 
 var device_context_base_address_array: [256]*context.DeviceContext align(64) = [_]*context.DeviceContext{undefined} ** 256;
 var command_ring_buf: [32]trb.TRB align(64) = [_]trb.TRB{undefined} ** 32;
@@ -75,6 +76,7 @@ pub const Controller = struct {
 
         primary_interrupter.iman.interrupt_pending = 1;
         primary_interrupter.iman.interrupt_enable = 1;
+        primary_interrupter.imod.interrupt_moderation_interval = 4000;
         self.operational.usbcmd.inte = 1;
         logger.log(.Debug, "enabled interrupter\n", .{});
 
@@ -88,8 +90,9 @@ pub const Controller = struct {
         return self.capability.hcsparams1.max_ports;
     }
 
-    pub fn getPort(self: Controller, num: u8) registers.PortRegisterSet {
-        return self.operational.getPortRegisterSet()[num];
+    pub fn getPort(self: Controller, num: u8) port.Port {
+        var p = self.operational.getPortRegisterSet()[num];
+        return port.Port.init(num, &p);
     }
 
     fn reset(self: *Self) void {
