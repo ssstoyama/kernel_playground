@@ -5,7 +5,18 @@ const font = @import("font.zig");
 const console = @import("console.zig");
 const logger = @import("logger.zig");
 const pci = @import("pci.zig");
+const interrupt = @import("interrupt.zig");
 const xhci = @import("driver/xhci.zig");
+
+var xhc: xhci.Controller = undefined;
+
+fn intHandlerXHCI(frame: *interrupt.InterruptFrame) void {
+    logger.log(.Debug, "intHandlerXHCI: {}\n", .{frame});
+}
+
+fn intHandlerGP(frame: *interrupt.InterruptFrame) void {
+    logger.log(.Debug, "intHandlerGP: {}\n", .{frame});
+}
 
 export fn kernel_main(boot_info: *BootInfo) void {
     const frame_buffer_config = boot_info.frame_buffer_config;
@@ -18,7 +29,25 @@ export fn kernel_main(boot_info: *BootInfo) void {
     pci.init();
     logger.log(.Info, "initialized pci\n", .{});
 
-    var xhc: xhci.Controller = undefined;
+    interrupt.setIDTEntry(
+        .general_protection_fault,
+        interrupt.InterruptDescriptorAttribute.init(
+            .interrupt_gate,
+            .ring0,
+        ),
+        @ptrToInt(&intHandlerGP),
+    );
+    interrupt.setIDTEntry(
+        .xhci,
+        interrupt.InterruptDescriptorAttribute.init(
+            .interrupt_gate,
+            .ring0,
+        ),
+        @ptrToInt(&intHandlerXHCI),
+    );
+    interrupt.loadIDT();
+    logger.log(.Info, "interrupts enabled\n", .{});
+
     var device_iter = pci.DeviceIterator.init();
     while (device_iter.next()) |device| {
         logger.log(.Info, "pci device: {x} {x} {x} {}\n", .{ device.bus, device.device, device.function, device.class_code });

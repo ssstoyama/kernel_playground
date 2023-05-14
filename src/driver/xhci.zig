@@ -47,9 +47,6 @@ pub const Controller = struct {
     }
 
     pub fn start(self: *Self) void {
-        logger.changeLevel(.Debug);
-        defer logger.changeLevel(.Info);
-
         self.reset();
 
         // Device Context 設定
